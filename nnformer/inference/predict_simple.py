@@ -226,6 +226,7 @@ def main():
     
     _=get_default_configuration(model, task_name, trainer_class_name, args.plans_identifier)
 
+    # import pdb; pdb.set_trace()
     predict_from_folder(model_folder_name, input_folder, output_folder, folds, save_npz, num_threads_preprocessing,
                         num_threads_nifti_save, lowres_segmentations, part_id, num_parts, not disable_tta,
                         overwrite_existing=overwrite_existing, mode=mode, overwrite_all_in_gpu=all_in_gpu,

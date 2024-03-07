@@ -38,6 +38,7 @@ def get_lowres_axis(new_spacing):
 def resample_patient(data, seg, original_spacing, target_spacing, order_data=3, order_seg=0, force_separate_z=False,
                      cval_data=0, cval_seg=-1, order_z_data=0, order_z_seg=0,
                      separate_z_anisotropy_threshold=RESAMPLING_SEPARATE_Z_ANISO_THRESHOLD):
+    ### same with resample_data_or_seg_to_spacing() in nnUNet
     """
     :param cval_seg:
     :param cval_data:
@@ -110,6 +111,7 @@ def resample_patient(data, seg, original_spacing, target_spacing, order_data=3, 
 
 
 def resample_data_or_seg(data, new_shape, is_seg, axis=None, order=3, do_separate_z=False, cval=0, order_z=0):
+    ## same with resample_data_or_seg() in nnUNet
     """
     separate_z=True will resample with order 0 along z
     :param data:
@@ -214,7 +216,7 @@ class GenericPreprocessor(object):
         self.normalization_scheme_per_modality = normalization_scheme_per_modality
         self.use_nonzero_mask = use_nonzero_mask
 
-        self.resample_separate_z_anisotropy_threshold = RESAMPLING_SEPARATE_Z_ANISO_THRESHOLD
+        self.resample_separate_z_anisotropy_threshold = RESAMPLING_SEPARATE_Z_ANISO_THRESHOLD # 3
 
     @staticmethod
     def load_cropped(cropped_output_dir, case_identifier):
@@ -356,7 +358,7 @@ class GenericPreprocessor(object):
     def run(self, target_spacings, input_folder_with_cropped_npz, output_folder, data_identifier,
             num_threads=default_num_threads, force_separate_z=None):
         """
-
+dont_run_preprocessing
         :param target_spacings: list of lists [[1.25, 1.25, 5]]
         :param input_folder_with_cropped_npz: dim: c, x, y, z | npz_file['data'] np.savez_compressed(fname.npz, data=arr)
         :param output_folder:
@@ -380,6 +382,11 @@ class GenericPreprocessor(object):
         all_classes = load_pickle(join(input_folder_with_cropped_npz, 'dataset_properties.pkl'))['all_classes']
 
         for i in range(num_stages):
+            # if i == 0:
+            #     print("===================")
+            #     print("Have Done for 3d lower!")
+            #     print("===================")
+            #     continue
             all_args = []
             output_folder_stage = os.path.join(output_folder, data_identifier + "_stage%d" % i)
             maybe_mkdir_p(output_folder_stage)

@@ -135,7 +135,7 @@ class DatasetAnalyzer(object):
         sizes = []
         spacings = []
         # for c in case_identifiers:
-        for c in self.patient_identifiers:
+        for c in self.patient_identifiers: #['BRATS_001', 'BRATS_002', 'BRATS_003', 'BRATS_004',...]
             properties = self.load_properties_of_cropped(c)
             sizes.append(properties["size_after_cropping"])
             spacings.append(properties["original_spacing"])
@@ -159,10 +159,11 @@ class DatasetAnalyzer(object):
         return size_reduction
 
     def _get_voxels_in_foreground(self, patient_identifier, modality_id):
+        # import pdb; pdb.set_trace()
         all_data = np.load(join(self.folder_with_cropped_data, patient_identifier) + ".npz")['data']
         modality = all_data[modality_id]
         mask = all_data[-1] > 0
-        voxels = list(modality[mask][::10]) # no need to take every voxel
+        voxels = list(modality[mask][::10]) # no need to take every voxel ###??? [::10]  取1/10 数据
         return voxels
 
     @staticmethod
@@ -177,6 +178,47 @@ class DatasetAnalyzer(object):
         percentile_99_5 = np.percentile(voxels, 99.5)
         percentile_00_5 = np.percentile(voxels, 00.5)
         return median, mean, sd, mn, mx, percentile_99_5, percentile_00_5
+
+    def collect_intensity_properties_single_thread(self, num_modalities):
+        if self.overwrite or not isfile(self.intensityproperties_file):
+            results = OrderedDict()
+            for mod_id in range(num_modalities):
+                results[mod_id] = OrderedDict()
+                props_per_case = OrderedDict()
+                w = []
+                cnt = 0
+                for patient_id, mod_id in zip(self.patient_identifiers, [mod_id] * len(self.patient_identifiers)):
+                    cnt += 1
+                    print(f"====dealing with: num: {cnt}, {patient_id}")
+                    voxels = self._get_voxels_in_foreground(patient_id, mod_id)
+                    w += voxels
+                    tmp = self._compute_stats(voxels)
+                    props_per_case[patient_id] = OrderedDict()
+                    props_per_case[patient_id]
+                    props_per_case[patient_id]['median'] = tmp[0]
+                    props_per_case[patient_id]['mean'] = tmp[1]
+                    props_per_case[patient_id]['sd'] = tmp[2]
+                    props_per_case[patient_id]['mn'] = tmp[3]
+                    props_per_case[patient_id]['mx'] = tmp[4]
+                    props_per_case[patient_id]['percentile_99_5'] = tmp[5]
+                    props_per_case[patient_id]['percentile_00_5'] = tmp[6]
+
+                median, mean, sd, mn, mx, percentile_99_5, percentile_00_5 = self._compute_stats(w)
+
+                results[mod_id]['local_props'] = props_per_case
+                results[mod_id]['median'] = median
+                results[mod_id]['mean'] = mean
+                results[mod_id]['sd'] = sd
+                results[mod_id]['mn'] = mn
+                results[mod_id]['mx'] = mx
+                results[mod_id]['percentile_99_5'] = percentile_99_5
+                results[mod_id]['percentile_00_5'] = percentile_00_5
+
+            save_pickle(results, self.intensityproperties_file)
+        else:
+            results = load_pickle(self.intensityproperties_file)
+        return results
+    
 
     def collect_intensity_properties(self, num_modalities):
         if self.overwrite or not isfile(self.intensityproperties_file):
@@ -224,8 +266,10 @@ class DatasetAnalyzer(object):
 
     def analyze_dataset(self, collect_intensityproperties=True):
         # get all spacings and sizes
-        sizes, spacings = self.get_sizes_and_spacings_after_cropping()
 
+        # 
+        sizes, spacings = self.get_sizes_and_spacings_after_cropping()  ## after crop, original spcaing
+        # import pdb; pdb.set_trace()
         # get all classes and what classes are in what patients
         # class min size
         # region size per class
@@ -233,16 +277,19 @@ class DatasetAnalyzer(object):
         all_classes = [int(i) for i in classes.keys() if int(i) > 0]
 
         # modalities
-        modalities = self.get_modalities()
+        modalities = self.get_modalities() #{0: 'FLAIR', 1: 'T1w', 2: 't1gd', 3: 'T2w'}
 
+        print("start to collect initensity!")
+        # import pdb; pdb.set_trace()
         # collect intensity information
-        if collect_intensityproperties:
-            intensityproperties = self.collect_intensity_properties(len(modalities))
+        if collect_intensityproperties: ## collect only for CT images
+            # intensityproperties = self.collect_intensity_properties(len(modalities))
+            intensityproperties = self.collect_intensity_properties_single_thread(len(modalities))
         else:
             intensityproperties = None
-
+        # import pdb; pdb.set_trace()
         # size reduction by cropping
-        size_reductions = self.get_size_reduction_by_cropping()
+        size_reductions = self.get_size_reduction_by_cropping() # crop之后是原始图像的多少分之多少
 
         dataset_properties = dict()
         dataset_properties['all_sizes'] = sizes
@@ -252,5 +299,6 @@ class DatasetAnalyzer(object):
         dataset_properties['intensityproperties'] = intensityproperties
         dataset_properties['size_reductions'] = size_reductions  # {patient_id: size_reduction}
 
+        # import pdb; pdb.set_trace()
         save_pickle(dataset_properties, join(self.folder_with_cropped_data, "dataset_properties.pkl"))
         return dataset_properties

@@ -55,6 +55,7 @@ def get_pool_and_conv_props_poolLateV2(patch_size, min_feature_map_size, max_num
     :param min_feature_map_size: min edge length of feature maps in bottleneck
     :return:
     """
+    # import pdb; pdb.set_trace()
     initial_spacing = deepcopy(spacing)
     reach = max(initial_spacing)
     dim = len(patch_size)
@@ -65,6 +66,7 @@ def get_pool_and_conv_props_poolLateV2(patch_size, min_feature_map_size, max_num
     net_conv_kernel_sizes = []
     net_numpool = max(num_pool_per_axis)
 
+    # import pdb; pdb.set_trace()
     current_spacing = spacing
     for p in range(net_numpool):
         reached = [current_spacing[i] / reach > 0.5 for i in range(dim)]
@@ -79,6 +81,7 @@ def get_pool_and_conv_props_poolLateV2(patch_size, min_feature_map_size, max_num
 
     net_conv_kernel_sizes.append([3] * dim)
 
+    # import pdb; pdb.set_trace()
     must_be_divisible_by = get_shape_must_be_divisible_by(num_pool_per_axis)
     patch_size = pad_shape(patch_size, must_be_divisible_by)
 

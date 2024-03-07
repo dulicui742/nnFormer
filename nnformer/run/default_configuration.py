@@ -71,6 +71,16 @@ def get_default_configuration(network, task, network_trainer, plans_identifier=d
         pickle_file = open(plans_file,'wb')
         pickle.dump(plans, pickle_file)
         pickle_file.close()
+    elif task=="Task010_data00_cls6_test":
+        print(f"======{task}======\n batch_size: {plans['plans_per_stage'][Stage]['batch_size']}\n\
+              patch_size: {plans['plans_per_stage'][Stage]['patch_size']}\n\
+              pool_size: {plans['plans_per_stage'][Stage]['pool_op_kernel_sizes']}")
+    elif task=="Task599_data00_cls6":
+        print(f"======{task}======\n batch_size: {plans['plans_per_stage'][Stage]['batch_size']}\n\
+              patch_size: {plans['plans_per_stage'][Stage]['patch_size']}\n\
+              pool_size: {plans['plans_per_stage'][Stage]['pool_op_kernel_sizes']}")
+        # pass
+
     possible_stages = list(plans['plans_per_stage'].keys())
 
     if (network == '3d_cascade_fullres' or network == "3d_lowres") and len(possible_stages) == 1:

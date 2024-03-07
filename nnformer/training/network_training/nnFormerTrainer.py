@@ -396,7 +396,7 @@ class nnFormerTrainer(NetworkTrainer):
     def load_dataset(self):
         self.dataset = load_dataset(self.folder_with_preprocessed_data)
 
-    def get_basic_generators(self):
+    def get_basic_generators(self):  ### nnUNet  get_plain_dataloaders()
         self.load_dataset()
         self.do_split()
 

@@ -40,6 +40,7 @@ def get_moreDA_augmentation(dataloader_train, dataloader_val, patch_size, params
                             soft_ds=False,
                             classes=None, pin_memory=True, regions=None,
                             use_nondetMultiThreadedAugmenter: bool = False):
+    ###  get_training_transforms  nnUNet
     assert params.get('mirror') is None, "old version of params, use new keyword do_mirror"
 
     tr_transforms = []

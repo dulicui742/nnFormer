@@ -601,6 +601,8 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
     :param overwrite_existing: if not None then it will be overwritten with whatever is in there. None is default (no overwrite)
     :return:
     """
+
+    # import pdb; pdb.set_trace()
     maybe_mkdir_p(output_folder)
     shutil.copy(join(model, 'plans.pkl'), output_folder)
 
@@ -624,6 +626,7 @@ def predict_from_folder(model: str, input_folder: str, output_folder: str, folds
     else:
         lowres_segmentations = None
 
+    # import pdb; pdb.set_trace()
     if mode == "normal":
         if overwrite_all_in_gpu is None:
             all_in_gpu = False

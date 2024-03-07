@@ -160,6 +160,7 @@ class ExperimentPlanner(object):
         :param num_cases:
         :return:
         """
+        # import pdb; pdb.set_trace()
         new_median_shape = np.round(original_spacing / current_spacing * original_shape).astype(int)
         dataset_num_voxels = np.prod(new_median_shape) * num_cases
 
@@ -191,6 +192,7 @@ class ExperimentPlanner(object):
                                                             self.unet_max_num_filters, num_modalities,
                                                             num_classes,
                                                             pool_op_kernel_sizes, conv_per_stage=self.conv_per_stage)
+        # import pdb; pdb.set_trace()
         while here > ref:
             axis_to_be_reduced = np.argsort(new_shp / new_median_shape)[-1]
 
@@ -216,7 +218,7 @@ class ExperimentPlanner(object):
                                                                 num_classes, pool_op_kernel_sizes,
                                                                 conv_per_stage=self.conv_per_stage)
             # print(new_shp)
-
+        # import pdb; pdb.set_trace()
         input_patch_size = new_shp
 
         batch_size = Generic_UNet.DEFAULT_BATCH_SIZE_3D  # This is what works with 128**3
@@ -248,22 +250,23 @@ class ExperimentPlanner(object):
         use_nonzero_mask_for_normalization = self.determine_whether_to_use_mask_for_norm()
         print("Are we using the nonzero mask for normalizaion?", use_nonzero_mask_for_normalization)
         spacings = self.dataset_properties['all_spacings']
-        sizes = self.dataset_properties['all_sizes']
+        sizes = self.dataset_properties['all_sizes'] ## after crop
 
-        all_classes = self.dataset_properties['all_classes']
-        modalities = self.dataset_properties['modalities']
-        num_modalities = len(list(modalities.keys()))
+        all_classes = self.dataset_properties['all_classes'] #[1, 2, 3]
+        modalities = self.dataset_properties['modalities'] #{0: 'FLAIR', 1: 'T1w', 2: 't1gd', 3: 'T2w'}
+        num_modalities = len(list(modalities.keys())) # 4
 
+        # import pdb; pdb.set_trace()
         target_spacing = self.get_target_spacing()
         new_shapes = [np.array(i) / target_spacing * np.array(j) for i, j in zip(spacings, sizes)]
 
-        max_spacing_axis = np.argmax(target_spacing)
-        remaining_axes = [i for i in list(range(3)) if i != max_spacing_axis]
+        max_spacing_axis = np.argmax(target_spacing) # 0
+        remaining_axes = [i for i in list(range(3)) if i != max_spacing_axis] #[1, 2]
         self.transpose_forward = [max_spacing_axis] + remaining_axes
         self.transpose_backward = [np.argwhere(np.array(self.transpose_forward) == i)[0][0] for i in range(3)]
 
         # we base our calculations on the median shape of the datasets
-        median_shape = np.median(np.vstack(new_shapes), 0)
+        median_shape = np.median(np.vstack(new_shapes), 0) #[138.  169.5 138. ]
         print("the median shape of the dataset is ", median_shape)
 
         max_shape = np.max(np.vstack(new_shapes), 0)
@@ -281,6 +284,7 @@ class ExperimentPlanner(object):
         print("the transposed median shape of the dataset is ", median_shape_transposed)
 
         print("generating configuration for 3d_fullres")
+        # import pdb; pdb.set_trace()
         self.plans_per_stage.append(self.get_properties_for_stage(target_spacing_transposed, target_spacing_transposed,
                                                                   median_shape_transposed,
                                                                   len(self.list_of_cropped_npz_files),
@@ -289,9 +293,22 @@ class ExperimentPlanner(object):
         # thanks Zakiyi (https://github.com/MIC-DKFZ/nnFormer/issues/61) for spotting this bug :-)
         # if np.prod(self.plans_per_stage[-1]['median_patient_size_in_voxels'], dtype=np.int64) / \
         #        architecture_input_voxels < HOW_MUCH_OF_A_PATIENT_MUST_THE_NETWORK_SEE_AT_STAGE0:
-        architecture_input_voxels_here = np.prod(self.plans_per_stage[-1]['patch_size'], dtype=np.int64)
+
+        # self.plans_per_stage = [
+        # {
+            # 'batch_size': 2, 'num_pool_per_axis': [5, 5, 5], 
+            # 'patch_size': array([128, 128, 128]), 
+            # 'median_patient_size_in_voxels': array([138, 170, 138]), 
+            # 'current_spacing': array([1., 1., 1.]), 
+            # 'original_spacing': array([1., 1., 1.]), 
+            # 'do_dummy_2D_data_aug': False, 
+            # 'pool_op_kernel_sizes': [[2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2], [2, 2, 2]], 
+            # 'conv_kernel_sizes': [[3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3], [3, 3, 3]]
+        # }]
+        # import pdb; pdb.set_trace()
+        architecture_input_voxels_here = np.prod(self.plans_per_stage[-1]['patch_size'], dtype=np.int64) ## 128*128*128=2097152
         if np.prod(median_shape) / architecture_input_voxels_here < \
-                self.how_much_of_a_patient_must_the_network_see_at_stage0:
+                self.how_much_of_a_patient_must_the_network_see_at_stage0: ## 138*170*138/128*128*128=1.53 < 4
             more = False
         else:
             more = True
@@ -334,9 +351,11 @@ class ExperimentPlanner(object):
         print("transpose backward", self.transpose_backward)
 
         normalization_schemes = self.determine_normalization_scheme()
+        # OrderedDict([(0, 'nonCT'), (1, 'nonCT'), (2, 'nonCT'), (3, 'nonCT')])
         only_keep_largest_connected_component, min_size_per_class, min_region_size_per_class = None, None, None
         # removed training data based postprocessing. This is deprecated
 
+        # import pdb; pdb.set_trace()
         # these are independent of the stage
         plans = {'num_stages': len(list(self.plans_per_stage.keys())), 'num_modalities': num_modalities,
                  'modalities': modalities, 'normalization_schemes': normalization_schemes,
@@ -349,7 +368,7 @@ class ExperimentPlanner(object):
                  'min_region_size_per_class': min_region_size_per_class, 'min_size_per_class': min_size_per_class,
                  'transpose_forward': self.transpose_forward, 'transpose_backward': self.transpose_backward,
                  'data_identifier': self.data_identifier, 'plans_per_stage': self.plans_per_stage,
-                 'preprocessor_name': self.preprocessor_name,
+                 'preprocessor_name': self.preprocessor_name, #"GenericPreprocessor"
                  'conv_per_stage': self.conv_per_stage,
                  }
 
@@ -429,6 +448,7 @@ class ExperimentPlanner(object):
         intensityproperties = self.plans['dataset_properties']['intensityproperties']
         preprocessor_class = recursive_find_python_class([join(nnformer.__path__[0], "preprocessing")],
                                                          self.preprocessor_name, current_module="nnformer.preprocessing")
+        # "GenericPreprocessor"
         assert preprocessor_class is not None
         preprocessor = preprocessor_class(normalization_schemes, use_nonzero_mask_for_normalization,
                                          self.transpose_forward,
