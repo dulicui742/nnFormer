@@ -118,7 +118,7 @@ ENV/
 ## pyc
 **/*.pyc
 #output
-.output
+output
 
 ##__pycache__
 */*/__pycache__
