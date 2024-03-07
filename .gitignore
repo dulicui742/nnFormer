@@ -116,7 +116,7 @@ ENV/
 
 
 ## pyc
-*.pyc
+**/*.pyc
 #output
 .output
 
