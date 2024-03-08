@@ -109,31 +109,29 @@ class Attention(nn.Module):
         B, N, C = x.shape
         q = self.q(x).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         if self.sr_ratio > 1:
-                x_ = x.permute(0, 2, 1).reshape(B, C, S, H, W)
-                x_1 = self.act(self.norm1(self.sr1(x_).reshape(B, C, -1).permute(0, 2, 1)))
-                x_2 = self.act(self.norm2(self.sr2(x_).reshape(B, C, -1).permute(0, 2, 1)))
-                kv1 = self.kv1(x_1).reshape(B, -1, 2, self.num_heads//2, C // self.num_heads).permute(2, 0, 3, 1, 4)
-                kv2 = self.kv2(x_2).reshape(B, -1, 2, self.num_heads//2, C // self.num_heads).permute(2, 0, 3, 1, 4)
-                k1, v1 = kv1[0], kv1[1] #B head N C
-                k2, v2 = kv2[0], kv2[1]
-                attn1 = (q[:, :self.num_heads//2] @ k1.transpose(-2, -1)) * self.scale
-                attn1 = attn1.softmax(dim=-1)
-                attn1 = self.attn_drop(attn1)
-                v1 = v1 + self.local_conv1(v1.transpose(1, 2).reshape(B, -1, C//2).
-                                        transpose(1, 2).view(B, C//2, S//self.sr_ratio, H//self.sr_ratio, W//self.sr_ratio)).\
-                    view(B, C//2, -1).view(B, self.num_heads//2, C // self.num_heads, -1).transpose(-1, -2)
-                x1 = (attn1 @ v1).transpose(1, 2).reshape(B, N, C//2)
-                attn2 = (q[:, self.num_heads // 2:] @ k2.transpose(-2, -1)) * self.scale
-                attn2 = attn2.softmax(dim=-1)
-                attn2 = self.attn_drop(attn2)
+            x_ = x.permute(0, 2, 1).reshape(B, C, S, H, W)
+            x_1 = self.act(self.norm1(self.sr1(x_).reshape(B, C, -1).permute(0, 2, 1)))
+            x_2 = self.act(self.norm2(self.sr2(x_).reshape(B, C, -1).permute(0, 2, 1)))
+            kv1 = self.kv1(x_1).reshape(B, -1, 2, self.num_heads//2, C // self.num_heads).permute(2, 0, 3, 1, 4)
+            kv2 = self.kv2(x_2).reshape(B, -1, 2, self.num_heads//2, C // self.num_heads).permute(2, 0, 3, 1, 4)
+            k1, v1 = kv1[0], kv1[1] #B head N C
+            k2, v2 = kv2[0], kv2[1]
+            attn1 = (q[:, :self.num_heads//2] @ k1.transpose(-2, -1)) * self.scale
+            attn1 = attn1.softmax(dim=-1)
+            attn1 = self.attn_drop(attn1)
+            v1 = v1 + self.local_conv1(v1.transpose(1, 2).reshape(B, -1, C//2).
+                                    transpose(1, 2).view(B, C//2, S//self.sr_ratio, H//self.sr_ratio, W//self.sr_ratio)).\
+                view(B, C//2, -1).view(B, self.num_heads//2, C // self.num_heads, -1).transpose(-1, -2)
+            x1 = (attn1 @ v1).transpose(1, 2).reshape(B, N, C//2)
+            attn2 = (q[:, self.num_heads // 2:] @ k2.transpose(-2, -1)) * self.scale
+            attn2 = attn2.softmax(dim=-1)
+            attn2 = self.attn_drop(attn2)
+            v2 = v2 + self.local_conv2(v2.transpose(1, 2).reshape(B, -1, C//2).
+                                    transpose(1, 2).view(B, C//2, S*2//self.sr_ratio, H*2//self.sr_ratio, W*2//self.sr_ratio)).\
+                view(B, C//2, -1).view(B, self.num_heads//2, C // self.num_heads, -1).transpose(-1, -2)
+            x2 = (attn2 @ v2).transpose(1, 2).reshape(B, N, C//2)
 
-                # import pdb; pdb.set_trace()
-                v2 = v2 + self.local_conv2(v2.transpose(1, 2).reshape(B, -1, C//2).
-                                        transpose(1, 2).view(B, C//2, S*2//self.sr_ratio, H*2//self.sr_ratio, W*2//self.sr_ratio)).\
-                    view(B, C//2, -1).view(B, self.num_heads//2, C // self.num_heads, -1).transpose(-1, -2)
-                x2 = (attn2 @ v2).transpose(1, 2).reshape(B, N, C//2)
-
-                x = torch.cat([x1,x2], dim=-1)
+            x = torch.cat([x1,x2], dim=-1)
         else:
             kv = self.kv(x).reshape(B, -1, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
             k, v = kv[0], kv[1]
@@ -141,7 +139,6 @@ class Attention(nn.Module):
             attn = (q @ k.transpose(-2, -1)) * self.scale
             attn = attn.softmax(dim=-1)
             attn = self.attn_drop(attn)
-
             x = (attn @ v).transpose(1, 2).reshape(B, N, C) + self.local_conv(v.transpose(1, 2).reshape(B, N, C).
                                         transpose(1, 2).view(B, C, S, H, W)).view(B, C, N).transpose(1, 2)
         x = self.proj(x)
@@ -165,8 +162,6 @@ class Attention_kv(nn.Module):
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
-
-
         self.sr_ratio = sr_ratio
         
         if sr_ratio > 1:
@@ -215,29 +210,29 @@ class Attention_kv(nn.Module):
         B, N, C = x_up.shape
         q = self.q(x_up).reshape(B, N, self.num_heads, C // self.num_heads).permute(0, 2, 1, 3)
         if self.sr_ratio > 1:
-                x_ = skip.permute(0, 2, 1).reshape(B, C, S, H, W)
-                x_1 = self.act(self.norm1(self.sr1(x_).reshape(B, C, -1).permute(0, 2, 1)))
-                x_2 = self.act(self.norm2(self.sr2(x_).reshape(B, C, -1).permute(0, 2, 1)))
-                kv1 = self.kv1(x_1).reshape(B, -1, 2, self.num_heads//2, C // self.num_heads).permute(2, 0, 3, 1, 4)
-                kv2 = self.kv2(x_2).reshape(B, -1, 2, self.num_heads//2, C // self.num_heads).permute(2, 0, 3, 1, 4)
-                k1, v1 = kv1[0], kv1[1] #B head N C
-                k2, v2 = kv2[0], kv2[1]
-                attn1 = (q[:, :self.num_heads//2] @ k1.transpose(-2, -1)) * self.scale
-                attn1 = attn1.softmax(dim=-1)
-                attn1 = self.attn_drop(attn1)
-                v1 = v1 + self.local_conv1(v1.transpose(1, 2).reshape(B, -1, C//2).
-                                        transpose(1, 2).view(B, C//2, S//self.sr_ratio, H//self.sr_ratio, W//self.sr_ratio)).\
-                    view(B, C//2, -1).view(B, self.num_heads//2, C // self.num_heads, -1).transpose(-1, -2)
-                x1 = (attn1 @ v1).transpose(1, 2).reshape(B, N, C//2)
-                attn2 = (q[:, self.num_heads // 2:] @ k2.transpose(-2, -1)) * self.scale
-                attn2 = attn2.softmax(dim=-1)
-                attn2 = self.attn_drop(attn2)
-                v2 = v2 + self.local_conv2(v2.transpose(1, 2).reshape(B, -1, C//2).
-                                        transpose(1, 2).view(B, C//2, S*2//self.sr_ratio, H*2//self.sr_ratio, W*2//self.sr_ratio)).\
-                    view(B, C//2, -1).view(B, self.num_heads//2, C // self.num_heads, -1).transpose(-1, -2)
-                x2 = (attn2 @ v2).transpose(1, 2).reshape(B, N, C//2)
+            x_ = skip.permute(0, 2, 1).reshape(B, C, S, H, W)
+            x_1 = self.act(self.norm1(self.sr1(x_).reshape(B, C, -1).permute(0, 2, 1)))
+            x_2 = self.act(self.norm2(self.sr2(x_).reshape(B, C, -1).permute(0, 2, 1)))
+            kv1 = self.kv1(x_1).reshape(B, -1, 2, self.num_heads//2, C // self.num_heads).permute(2, 0, 3, 1, 4)
+            kv2 = self.kv2(x_2).reshape(B, -1, 2, self.num_heads//2, C // self.num_heads).permute(2, 0, 3, 1, 4)
+            k1, v1 = kv1[0], kv1[1] #B head N C
+            k2, v2 = kv2[0], kv2[1]
+            attn1 = (q[:, :self.num_heads//2] @ k1.transpose(-2, -1)) * self.scale
+            attn1 = attn1.softmax(dim=-1)
+            attn1 = self.attn_drop(attn1)
+            v1 = v1 + self.local_conv1(v1.transpose(1, 2).reshape(B, -1, C//2).
+                                    transpose(1, 2).view(B, C//2, S//self.sr_ratio, H//self.sr_ratio, W//self.sr_ratio)).\
+                view(B, C//2, -1).view(B, self.num_heads//2, C // self.num_heads, -1).transpose(-1, -2)
+            x1 = (attn1 @ v1).transpose(1, 2).reshape(B, N, C//2)
+            attn2 = (q[:, self.num_heads // 2:] @ k2.transpose(-2, -1)) * self.scale
+            attn2 = attn2.softmax(dim=-1)
+            attn2 = self.attn_drop(attn2)
+            v2 = v2 + self.local_conv2(v2.transpose(1, 2).reshape(B, -1, C//2).
+                                    transpose(1, 2).view(B, C//2, S*2//self.sr_ratio, H*2//self.sr_ratio, W*2//self.sr_ratio)).\
+                view(B, C//2, -1).view(B, self.num_heads//2, C // self.num_heads, -1).transpose(-1, -2)
+            x2 = (attn2 @ v2).transpose(1, 2).reshape(B, N, C//2)
 
-                x = torch.cat([x1,x2], dim=-1)
+            x = torch.cat([x1,x2], dim=-1)
         else:
             kv = self.kv(skip).reshape(B, -1, 2, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
             k, v = kv[0], kv[1]
@@ -289,6 +284,7 @@ class Block(nn.Module):
                 m.bias.data.zero_()
 
     def forward(self, x, S, H, W):
+        # import pdb; pdb.set_trace()
         x = x + self.drop_path(self.attn(self.norm1(x), S, H, W))
         x = x + self.drop_path(self.mlp(self.norm2(x), S, H, W))
         return x

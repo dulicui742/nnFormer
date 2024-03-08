@@ -23,7 +23,8 @@ from nnformer.training.data_augmentation.data_augmentation_moreDA import get_mor
 from nnformer.training.loss_functions.deep_supervision import MultipleOutputLoss2
 from nnformer.utilities.to_torch import maybe_to_torch, to_cuda
 # from nnformer.network_architecture.nnFormer_tumor import nnFormer
-from nnformer.network_architecture.nnFormer_tumor_ssa import nnFormer
+# from nnformer.network_architecture.nnFormer_tumor_ssa import nnFormer
+from nnformer.network_architecture.nnFormer_ssa_nn import nnFormer
 from nnformer.network_architecture.initialization import InitWeights_He
 from nnformer.network_architecture.neural_network import SegmentationNetwork
 from nnformer.training.data_augmentation.default_data_augmentation import default_2D_augmentation_params, \
@@ -95,14 +96,16 @@ class nnFormerTrainerV2_nnformer_data00_cls6(nnFormerTrainer):
 
         ### Experiment 3: 皮肤改善，但是肺血管和支气管分割性能降低了
         self.embedding_dim=64  #[64, 128, 256, 512]
-        self.depths=[3, 4, 24, 2]
+        # self.depths=[3, 4, 24, 2]
+        self.depths=[1, 2, 4, 1]
         self.num_heads=[2, 4, 8, 16]
         self.mlp_ratios=[8, 8, 4, 4]
         self.sr_ratios=[8, 4, 2, 1]
         self.embedding_patch_size=[4,4,4]
         # self.window_size=[4,4,8,4]
-        self.deep_supervision=True
-        print(f"num heads: {self.num_heads}")
+        self.deep_supervision = True ##False #
+        # self.net_num_pool_op_kernel_sizes
+        print(f"num heads: {self.num_heads}, depth: {self.depths}")
 
     def initialize(self, training=True, force_load_plans=False):
         """
@@ -207,6 +210,8 @@ class nnFormerTrainerV2_nnformer_data00_cls6(nnFormerTrainer):
                                 sr_ratios=self.sr_ratios,
                                 patch_size=self.embedding_patch_size,
                                 # window_size=self.window_size,
+                                net_num_pool_op_kernel_sizes=self.net_num_pool_op_kernel_sizes,
+                                net_conv_kernel_sizes=self.net_conv_kernel_sizes,
                                 deep_supervision=self.deep_supervision)
         if self.load_pretrain_weight:
             checkpoint = torch.load("/home/xychen/jsguo/weight/tumor_pretrain.model", map_location='cpu')
@@ -352,8 +357,6 @@ class nnFormerTrainerV2_nnformer_data00_cls6(nnFormerTrainer):
         use a random 80:20 data split.
         :return:
         """
-
-        # import pdb; pdb.set_trace()
         if self.fold == "all":
             # if fold==all then we use all images for training and validation
             tr_keys = val_keys = list(self.dataset.keys())
@@ -381,7 +384,6 @@ class nnFormerTrainerV2_nnformer_data00_cls6(nnFormerTrainer):
                 splits = load_json(splits_file)
                 self.print_to_log_file("The split file contains %d splits." % len(splits))
 
-            # import pdb; pdb.set_trace()
             self.print_to_log_file("Desired fold for training: %d" % self.fold)
 
             ## custom define

@@ -39,5 +39,25 @@ class MultipleOutputLoss2(nn.Module):
         l = weights[0] * self.loss(x[0], y[0])
         for i in range(1, len(x)):
             if weights[i] != 0:
-                l += weights[i] * self.loss(x[i], y[i])
+                # l += weights[i] * self.loss(x[i], y[i])
+                l += weights[i] * self.loss(x[i], y[i + 1])  ## nnUnet每次都是下采样2x， nnFormer首次下采样4x，decoder最后也是上采样4x
         return l
+    
+    # (Pdb) x[0].shape
+    # torch.Size([2, 7, 96, 160, 160])
+    # (Pdb) x[1].shape
+    # torch.Size([2, 7, 24, 40, 40])
+    # (Pdb) x[2].shape
+    # torch.Size([2, 7, 12, 20, 20])
+    # (Pdb) x[3].shape
+    # torch.Size([2, 7, 6, 10, 10])
+    # (Pdb) y[0].shape
+    # torch.Size([2, 1, 96, 160, 160])
+    # (Pdb) y[1].shape
+    # torch.Size([2, 1, 48, 80, 80])
+    # (Pdb) y[2].shape
+    # torch.Size([2, 1, 24, 40, 40])
+    # (Pdb) y[3].shape
+    # torch.Size([2, 1, 12, 20, 20])
+    # (Pdb) y[4].shape
+    # torch.Size([2, 1, 6, 10, 10])
