@@ -556,11 +556,8 @@ class BasicLayer_up(nn.Module):
                  conv_kernel_sizes=[3,3,3],
                 ):
         super().__init__()
-        # self.window_size = window_size
-        # self.shift_size = window_size // 2
         self.depth = depth
         self.pool_op_kernel_sizes = pool_op_kernel_sizes
-        
 
         # build blocks
         self.blocks = nn.ModuleList()
@@ -613,7 +610,8 @@ class BasicLayer_up(nn.Module):
             x = self.blocks[i+1](x, S, H, W)
         
         return x, S, H, W
-        
+
+
 class project(nn.Module):
     def __init__(self,in_dim,out_dim,stride,padding,activate,norm,last=False):
         super().__init__()
@@ -689,15 +687,26 @@ class PatchEmbed(nn.Module):
         # if S % self.patch_size[0] != 0:
         #     x = F.pad(x, (0, 0, 0, 0, 0, self.patch_size[0] - S % self.patch_size[0]))
 
-        x = self.proj1(x)  # B C Ws Wh Ww
-        x = self.proj2(x)  # B C Ws Wh Ww
-        if self.norm is not None:
-            Ws, Wh, Ww = x.size(2), x.size(3), x.size(4)
-            x = x.flatten(2).transpose(1, 2).contiguous()
-            x = self.norm(x)
-            x = x.transpose(1, 2).contiguous().view(-1, self.embed_dim, Ws, Wh, Ww)
+        ### ok
+        # x = self.proj1(x)  # B C Ws Wh Ww
+        # x = self.proj2(x)  # B C Ws Wh Ww
+        # if self.norm is not None:
+        #     Ws, Wh, Ww = x.size(2), x.size(3), x.size(4)
+        #     x = x.flatten(2).transpose(1, 2).contiguous()
+        #     x = self.norm(x)
+        #     x = x.transpose(1, 2).contiguous().view(-1, self.embed_dim, Ws, Wh, Ww)
 
-        return x
+        # return x
+
+        x_2x = self.proj1(x)  # B C Ws Wh Ww
+        x_4x = self.proj2(x_2x)  # B C Ws Wh Ww
+        if self.norm is not None:
+            Ws, Wh, Ww = x_4x.size(2), x_4x.size(3), x_4x.size(4)
+            x_4x = x_4x.flatten(2).transpose(1, 2).contiguous()
+            x_4x = self.norm(x_4x)
+            x_4x = x_4x.transpose(1, 2).contiguous().view(-1, self.embed_dim, Ws, Wh, Ww)
+
+        return x_2x, x_4x
     
 
 class PatchEmbed_2x(nn.Module):
@@ -835,9 +844,12 @@ class Encoder(nn.Module):
 
     def forward(self, x):
         """Forward function."""
-        x = self.patch_embed(x)
+
         down=[]
-       
+        x2, x4 = self.patch_embed(x)
+        # down.append(x2)  ## 2x下采样存储， 做跳层连接使用，保证小目标的有效性
+        
+        x = x4
         Ws, Wh, Ww = x.size(2), x.size(3), x.size(4)
         
         x = x.flatten(2).transpose(1, 2).contiguous()
@@ -854,8 +866,7 @@ class Encoder(nn.Module):
                 out = x_out.view(-1, S, H, W, self.num_features[i]).permute(0, 4, 1, 2, 3).contiguous()
               
                 down.append(out)
-        return down
-
+        return x2, down
    
 
 class Decoder(nn.Module):
@@ -925,7 +936,7 @@ class Decoder(nn.Module):
         #     norm_layer=norm_layer
         # )
 
-    def forward(self,x,skips): 
+    def forward(self, x, skips): 
         outs=[]
         S, H, W = x.size(2), x.size(3), x.size(4)
         x = x.flatten(2).transpose(1, 2).contiguous()
@@ -933,7 +944,7 @@ class Decoder(nn.Module):
              i = i.flatten(2).transpose(1, 2).contiguous()
              skips[index]=i
         x = self.pos_drop(x)
-            
+
         for i in range(self.num_layers)[::-1]:
             layer = self.layers[i]
             x, S, H, W = layer(x, skips[i], S, H, W)
@@ -989,9 +1000,6 @@ class final_patch_expanding_nn(nn.Module):
         return x   
 
 
-
-
-                                         
 class nnFormer(SegmentationNetwork):
     def __init__(self, crop_size=[64,128,128],
                 embedding_dim=192,
@@ -1061,22 +1069,40 @@ class nnFormer(SegmentationNetwork):
 
         p0 = net_num_pool_op_kernel_sizes[::-1][-2]
         p1 = net_num_pool_op_kernel_sizes[::-1][-1]
-        pool_kernel = [p0[i]*p1[i] for i in range(len(p0))]
-        self.final_patch_expanding_nn = final_patch_expanding_nn(
+        # pool_kernel = [p0[i]*p1[i] for i in range(len(p0))]
+        # self.final_patch_expanding_nn = final_patch_expanding_nn(
+        #     embed_dim,
+        #     num_classes,
+        #     pool_kernel
+        # )
+
+        self.final_patch_expanding_nn_4x_to_2x = final_patch_expanding_nn(
             embed_dim,
-            num_classes,
-            pool_kernel
+            # num_classes,
+            embed_dim // 2,
+            p0  ## 4x_to_2x
         )
+
+        self.final_patch_expanding_nn_2x_to_1x = final_patch_expanding_nn(
+            embed_dim // 2,
+            # num_classes,
+            embed_dim // 2,
+            p1  ## 2x_to_1x
+        )
+
+        self.conv_2x = nn.Conv3d(embed_dim, embed_dim//2, 1, 1, 0, bias=True)  ##调整concat之后的维度(embed*2-->embed)
 
         self.final=[]
         if self.do_ds:
-            self.final.append(nn.Conv3d(embed_dim, num_classes, 1, 1, 0, bias=True))  ## 4x
+            # self.final.append(nn.Conv3d(embed_dim, num_classes, 1, 1, 0, bias=True))  ## 4x
+            self.final.append(nn.Conv3d(embed_dim//2 , num_classes, 1, 1, 0,bias=True)) # 32, 7
+            # self.final.append(nn.Conv3d(embed_dim, num_classes, 1, 1, 0,bias=True))     # 64, 7
             for i in range(len(depths)-1):
                 self.final.append(nn.Conv3d(embed_dim*2**i, num_classes, 1, 1, 0, bias=True))
-            
-
         else:
-            self.final.append(nn.Conv3d(embed_dim, num_classes, 1, 1, 0,bias=True ))
+            # self.final.append(nn.Conv3d(embed_dim, num_classes, 1, 1, 0,bias=True))
+            self.final.append(nn.Conv3d(embed_dim//2 , num_classes, 1, 1, 0,bias=True))   ## Decoder分支是 由下向上的方向
+
             # p0 = net_num_pool_op_kernel_sizes[::-1][-2]
             # p1 = net_num_pool_op_kernel_sizes[::-1][-1]
             # pool_kernel = [p0[i]*p1[i] for i in range(len(p0))]
@@ -1088,70 +1114,45 @@ class nnFormer(SegmentationNetwork):
             #     )
             # )
         
-
-        # seg_layers = []
-        # seg_layers.append(
-        #     nn.Conv3d(input_features_skip, num_classes, 1, 1, 0, bias=True)
-        # )
     
         self.final=nn.ModuleList(self.final)
     
 
     def forward(self, x): 
         seg_outputs=[]
-        skips = self.model_down(x)
-        neck=skips[-1]
-        out=self.decoder(neck,skips)  #len(out) = 3 
-        # import pdb; pdb.set_trace()
-        if self.do_ds:
-            # for i in range(len(out)):  
-                # seg_outputs.append(self.final[-(i+1)](out[i]))
-                # seg_outputs.append(
-                #     nn.Conv3d(
-                #         out[i].shape[-1], ## feather dims
-                #         self.num_classes, 
-                #         kernel_size=1,
-                #         stride=1,
-                #         padding=1
-                #     )(out[i])
-                # )
-            
-            # final_output = self.final_patch_expanding_nn(out[-1])
-            # seg_outputs.append(
-            #     nn.Conv3d(
-            #             final_output.shape[1],
-            #             self.num_classes, 
-            #             kernel_size=1,
-            #             stride=1,
-            #             padding=1
-            #         )(final_output)
-            # )
-                
+        x2, skips = self.model_down(x)
+        neck = skips[-1]
+        out = self.decoder(neck, skips)  #len(out) = 3  out 只包含attention部分的输出，分辨率是4x，4x->2x及2x->1x的在下边实现
+  
+        if self.do_ds: 
             for i in range(len(out)):
                 seg_outputs.append(self.final[-(i+1)](out[i].permute(0, 4, 1, 2, 3)))
-            final_output = self.final_patch_expanding_nn(out[-1])
-            # seg_outputs.append(self.final[0](final_output))
-            seg_outputs.append(final_output)
+
+            ## 4x to 2x
+            final_output_4x_to_2x = self.final_patch_expanding_nn_4x_to_2x(out[-1])
+            final_output_4x_to_2x = torch.cat([x2, final_output_4x_to_2x], dim=1) ### B, C, S, H, W  concat at C dim，
+            seg_outputs.append(self.final[1](final_output_4x_to_2x))
+            final_output_4x_to_2x = self.conv_2x(final_output_4x_to_2x)
+
+            ## 2x to 1x
+            final_output_4x_to_2x = final_output_4x_to_2x.permute(0, 2, 3, 4, 1)
+            final_output_2x_to_1x = self.final_patch_expanding_nn_2x_to_1x(final_output_4x_to_2x)
+            seg_outputs.append(self.final[0](final_output_2x_to_1x))
+            # print(f"======segout len: {len(seg_outputs)}")
             return seg_outputs[::-1]
         else:
-            # seg_outputs.append(self.final[0](out[-1]))
-            seg_outputs.append(self.final_patch_expanding_nn(out[-1]))
+            ## 4x to 2x
+            final_output_4x_to_2x = self.final_patch_expanding_nn_4x_to_2x(out[-1])
+            final_output_4x_to_2x = torch.cat([x2, final_output_4x_to_2x], dim=1) ### B, C, S, H, W  concat at C dim，
+            final_output_4x_to_2x = self.conv_2x(final_output_4x_to_2x)
+
+            ## 2x to 1x 
+            final_output_4x_to_2x = final_output_4x_to_2x.permute(0, 2, 3, 4, 1)
+            final_output_2x_to_1x = self.final_patch_expanding_nn_2x_to_1x(final_output_4x_to_2x)
+            seg_outputs.append(self.final[0](final_output_2x_to_1x))
+            # seg_outputs.append(self.final_patch_expanding_nn(out[-1]))
             return seg_outputs[-1]
         
-
-
-    # def forward(self, x): 
-    #     seg_outputs=[]
-    #     skips = self.model_down(x)
-    #     neck=skips[-1]
-    #     out=self.decoder(neck,skips)  #len(out) = 4 
-    #     if self.do_ds:
-    #         for i in range(len(out)):  
-    #             seg_outputs.append(self.final[-(i+1)](out[i]))
-    #         return seg_outputs[::-1]
-    #     else:
-    #         seg_outputs.append(self.final[0](out[-1]))
-    #         return seg_outputs[-1]
         
         
         

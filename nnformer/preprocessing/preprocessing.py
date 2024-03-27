@@ -342,7 +342,7 @@ class GenericPreprocessor(object):
                 class_locs[c] = []
                 continue
             target_num_samples = min(num_samples, len(all_locs))
-            target_num_samples = max(target_num_samples, int(np.ceil(len(all_locs) * min_percent_coverage)))
+            target_num_samples = max(target_num_samples, int(np.ceil(len(all_locs) * min_percent_coverage)))   ### 设计的合理吗？？应该是这里导致的生成过程变慢
 
             selected = all_locs[rndst.choice(len(all_locs), target_num_samples, replace=False)]
             class_locs[c] = selected
@@ -358,7 +358,7 @@ class GenericPreprocessor(object):
     def run(self, target_spacings, input_folder_with_cropped_npz, output_folder, data_identifier,
             num_threads=default_num_threads, force_separate_z=None):
         """
-dont_run_preprocessing
+        dont_run_preprocessing
         :param target_spacings: list of lists [[1.25, 1.25, 5]]
         :param input_folder_with_cropped_npz: dim: c, x, y, z | npz_file['data'] np.savez_compressed(fname.npz, data=arr)
         :param output_folder:

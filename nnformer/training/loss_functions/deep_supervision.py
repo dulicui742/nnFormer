@@ -39,8 +39,8 @@ class MultipleOutputLoss2(nn.Module):
         l = weights[0] * self.loss(x[0], y[0])
         for i in range(1, len(x)):
             if weights[i] != 0:
-                # l += weights[i] * self.loss(x[i], y[i])
-                l += weights[i] * self.loss(x[i], y[i + 1])  ## nnUnet每次都是下采样2x， nnFormer首次下采样4x，decoder最后也是上采样4x
+                l += weights[i] * self.loss(x[i], y[i])   ## 将4x下采样分成2个2x下采样进行，此处就能和yi一一对应了(yi下采样是在get_moreDA_augmentation函数中的DownsampleSegForDSTransform2中实现的)
+                # l += weights[i] * self.loss(x[i], y[i + 1])  ## nnUnet每次都是下采样2x， nnFormer首次下采样4x，decoder最后也是上采样4x
         return l
     
     # (Pdb) x[0].shape

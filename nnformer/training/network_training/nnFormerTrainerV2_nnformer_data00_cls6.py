@@ -96,8 +96,8 @@ class nnFormerTrainerV2_nnformer_data00_cls6(nnFormerTrainer):
 
         ### Experiment 3: 皮肤改善，但是肺血管和支气管分割性能降低了
         self.embedding_dim=64  #[64, 128, 256, 512]
-        # self.depths=[3, 4, 24, 2]
-        self.depths=[1, 2, 4, 1]
+        self.depths=[3, 4, 24, 2]
+        # self.depths=[1, 2, 4, 1]
         self.num_heads=[2, 4, 8, 16]
         self.mlp_ratios=[8, 8, 4, 4]
         self.sr_ratios=[8, 4, 2, 1]
